@@ -1,10 +1,17 @@
 pipeline {
-    agent any
+    agent {label "srinu"}
 
     stages {
-        stage('Build') {
+        stage('code checkout') {
             steps {
+                echo 'Checking out the code..'
+                git branch: 'master', url: 'https://github.com/srinu-1/weather-app.git'
+                echo "Code checkout completed.."
+            }
+            steps ('Build') {
                 echo 'Building the application..'
+                sh "whoami"
+                sh "docker build -t weather-app ."
             }
         }
         
@@ -17,6 +24,8 @@ pipeline {
         stage('Deploy') {
             steps {
                 echo 'Deploying the application..'
+                sh "docker run -d --name sr -p 8080:8080 weather-app"
+                echo "Application deployed successfully.."
             }
         }
     }
