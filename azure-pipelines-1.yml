@@ -9,7 +9,6 @@ resources:
 - repo: self
 
 variables:
-
   # Container registry service connection established during pipeline creation
   dockerRegistryServiceConnection: 'f3cbe019-6f06-44e5-aa20-11657234e123'
   imageRepository: 'pkishoreweatherapp'
@@ -17,13 +16,10 @@ variables:
   dockerfilePath: '**/Dockerfile'
   tag: '$(Build.BuildId)'
   imagePullSecret: 'aksacr298303839-auth'
-
-  # Agent VM image name
-    pool:
-      name: 'aapmor_agentpool'
-
-  # Name of the new namespace being created to deploy the PR changes.
   k8sNamespaceForPR: 'review-app-$(System.PullRequest.PullRequestId)'
+
+pool:
+  name: 'aapmor_agentpool1'
 
 stages:
 - stage: Build
@@ -32,7 +28,7 @@ stages:
   - job: Build
     displayName: Build
     pool:
-      name: 'aapmor_agentpool'
+      name: 'aapmor_agentpool1'
     steps:
     - task: Docker@2
       displayName: Build and push an image to container registry
@@ -44,7 +40,7 @@ stages:
         tags: |
           $(tag)
 
-    - upload: manifests
+    - publish: manifests
       artifact: manifests
 
 - stage: Deploy
@@ -56,7 +52,7 @@ stages:
     condition: and(succeeded(), not(startsWith(variables['Build.SourceBranch'], 'refs/pull/')))
     displayName: Deploy
     pool:
-      name: 'aapmor_agentpool'
+      name: 'aapmor_agentpool1'
     environment: 'pkishore1994weatherapp.default'
     strategy:
       runOnce:
@@ -81,26 +77,41 @@ stages:
               containers: |
                 $(containerRegistry)/$(imageRepository):$(tag)
 
-  - deployment: DeployPullRequest
-    displayName: Deploy Pull request
-    condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/pull/'))
-    pool:
-      name: 'aapmor_agentpool'
+- stage: DeployPullRequest
+  displayName: Deploy Pull Request
+  condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/pull/'))
+  pool:
+    name: 'aapmor_agentpool1'
 
-    environment: 'pkishore1994weatherapp.$(k8sNamespaceForPR)'
+  jobs:
+  - job: CreateNamespace
+    displayName: Create Namespace
+    steps:
+    - task: Kubernetes@1
+      displayName: 'Create a new namespace for the pull request'
+      inputs:
+        command: apply
+        useConfigurationFile: true
+        inline: '{ "kind": "Namespace", "apiVersion": "v1", "metadata": { "name": "$(k8sNamespaceForPR)" }}'
+
+    - script: sleep 30
+      displayName: 'Wait for namespace creation'
+
+    - task: Kubernetes@1
+      displayName: 'Verify Namespace Creation'
+      continueOnError: false
+      inputs:
+        command: get
+        arguments: namespace $(k8sNamespaceForPR)
+
+  - deployment: DeployPullRequest
+    displayName: Deploy Pull Request
+    dependsOn: CreateNamespace
+    environment: 'pkishore1994weatherapp'
     strategy:
       runOnce:
         deploy:
           steps:
-          - reviewApp: default
-
-          - task: Kubernetes@1
-            displayName: 'Create a new namespace for the pull request'
-            inputs:
-              command: apply
-              useConfigurationFile: true
-              inline: '{ "kind": "Namespace", "apiVersion": "v1", "metadata": { "name": "$(k8sNamespaceForPR)" }}'
-
           - task: KubernetesManifest@0
             displayName: Create imagePullSecret
             inputs:
@@ -132,7 +143,6 @@ stages:
               arguments: svc
               outputFormat: jsonpath='http://{.items[0].status.loadBalancer.ingress[0].ip}:{.items[0].spec.ports[0].port}'
 
-          # Getting the IP of the deployed service and writing it to a variable for posing comment
           - script: |
               url="$(get.KubectlOutput)"
               message="Your review app has been deployed"
