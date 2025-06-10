@@ -12,7 +12,7 @@ variables:
   tag: '$(Build.BuildId)'
 
 pool:
-  name: 'ubuntu'
+  name: 'aapmor_agentpool'
 
 stages:
 - stage: Build
