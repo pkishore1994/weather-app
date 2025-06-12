@@ -6,7 +6,8 @@ trigger:
 - main
 
 resources:
-- repo: self
+  repositories:
+    - repository: self
 
 variables:
   # Container registry service connection established during pipeline creation
@@ -16,9 +17,8 @@ variables:
   dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
   tag: '$(Build.BuildId)'
 
-  # Agent VM image name
-  pool: 
-    name: 'azure-agent'
+pool:
+  name: 'azure-agent'
 
 stages:
 - stage: Build
