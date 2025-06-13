@@ -11,7 +11,6 @@ variables:
 
 stages:
 - stage: BuildAndDeploy
-  displayName: Build and Deploy to ACR and GitHub
   jobs:
   - job: BuildAndPushImage
     displayName: Build and Push Docker Image
@@ -25,7 +24,7 @@ stages:
       displayName: Build and Push Image to ACR
       inputs:
         command: buildAndPush
-        containerRegistry: 'acr-aksacr2-connection'   # ✅ Replace with your actual service connection name
+        containerRegistry: 'acr-aksacr2-connection'   # <- Make sure this exact name exists in DevOps
         repository: $(imageName)
         Dockerfile: Dockerfile
         tags: |
