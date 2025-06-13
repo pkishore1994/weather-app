@@ -1,20 +1,44 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: weather-app
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: weather-app
-  template:
-    metadata:
-      labels:
-        app: weather-app
-    spec:
-      containers:
-      - name: weather-app
-        image: aksacr2.azurecr.io/pkishoreweatherapp:latest
-        ports:
-        - containerPort: 80
+trigger:
+  branches:
+    include:
+      - main
 
+variables:
+  acrName: aksacr2
+  imageName: pkishoreweatherapp
+  imageTag: '$(Build.BuildId)'
+  repoPath: 'weather-app/manifests/deployment.yml'
+
+stages:
+- stage: BuildAndDeploy
+  jobs:
+  - job: BuildAndPushImage
+    displayName: Build and Push Docker Image
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - checkout: self
+
+    - task: Docker@2
+      displayName: Build and Push Image to ACR
+      inputs:
+        command: buildAndPush
+        containerRegistry: 'Your-ACR-ServiceConnection-Name'  # <- Update this
+        repository: $(imageName)
+        Dockerfile: 'Dockerfile'
+        tags: |
+          $(imageTag)
+
+    - script: |
+        echo "Replacing image tag in manifest..."
+        sed -i "s|\(image: $(acrName).azurecr.io/$(imageName):\).*|\1$(imageTag)|" $(repoPath)
+      displayName: Update image tag in deployment manifest
+
+    - script: |
+        git config user.name "Azure DevOps"
+        git config user.email "azuredevops@yourdomain.com"
+        git add $(repoPath)
+        git commit -m "CI: Update image tag to $(imageTag)"
+        git push
+      displayName: Commit and push changes
